@@ -1,0 +1,121 @@
+apiVersion: "apps/v1"
+kind: Deployment
+metadata:
+  name: shopping-cart
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: shopping-cart
+  template:
+    metadata:
+      annotations:
+        # For some reason, the Knative Istio installation has the policy defaulting to disabled
+        sidecar.istio.io/inject: "true"
+      labels:
+        app: shopping-cart
+    spec:
+      containers:
+      - name: shopping-cart
+        image: ddata-shopping-cart:latest
+        imagePullPolicy: "Never"
+
+        ports:
+        - containerPort: 8080
+          name: "http"
+        - containerPort: 2552
+          name: "akka-remoting"
+        - containerPort: 8558
+          name: "akka-management"
+
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: "DYN_JAVA_OPTS"
+          # Here we use ${POD_IP//./-} to replace dots with dashes
+          value: "-Dpod.ip=${POD_IP//./-}"
+        - name: "JAVA_OPTS"
+          value: "-Xms128m -Xmx128m -Dconfig.resource=prod-application.conf"
+
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 0.25
+            memory: 256Mi
+
+---
+
+# Service entry to allow outgoing communication with other pods in this namepsace on Akka remoting and management
+# ports
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: shopping-cart
+spec:
+  hosts:
+  - "*.default.pod.cluster.local"
+  location: MESH_INTERNAL
+  ports:
+  - number: 2552
+    name: "akka-remoting"
+    protocol: TCP
+  - number: 8558
+    name: "akka-management"
+    protocol: HTTP
+  resolution: NONE
+
+---
+
+# Not sure if the remoting/management should be separated from the main HTTP
+# interface - probably, for ingress routing we don't want anything being
+# routed to remoting or management?
+apiVersion: v1
+kind: Service
+metadata:
+  name: shopping-cart
+spec:
+  ports:
+  - name: "akka-remoting"
+    port: 2552
+    protocol: TCP
+  - name: "akka-management"
+    port: 8558
+    protocol: TCP
+  - name: http
+    port: 80
+    targetPort: 8080
+  selector:
+    app: shopping-cart
+
+---
+
+# RBAC configuration for kubernetes API discovery mechanism
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-pods
+subjects:
+- kind: User
+  name: system:serviceaccount:default:default
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io

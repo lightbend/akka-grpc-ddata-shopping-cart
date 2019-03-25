@@ -1,0 +1,83 @@
+# Akka ddata shopping cart KNative experiment
+
+The goal of this project is to get an Akka Cluster working in KNative.
+
+This basically takes the [Akka Distributed Data Highly Available Shopping Cart](https://github.com/akka/akka-samples/blob/2.5/akka-sample-distributed-data-scala/src/main/scala/sample/distributeddata/ShoppingCart.scala), and places an Akka HTTP interface in front of it.
+
+It configures the cluster formation using instructions found at the [Lightbend OpenShift deployment guide](https://developer.lightbend.com/guides/openshift-deployment/akka/forming-a-cluster.html), but with additional changes as described in [this issue](https://github.com/akka/akka-management/issues/209), which includes:
+
+* Always bind to `127.0.0.1`
+* Use the pod service name for communication between pods
+* Configure `ServiceEntry`'s for intra-pod communication
+* Don't specify health checks as these will prevent communication prior to readiness
+* Modify docker entry point to set the pod ip address to be a dash separated address for the purposes of constructing pod service names in configuration
+
+## Running in Minikube
+
+So far, I have managed to get the project running on Minikube with Istio (I haven't yet attempted to run in KNative).
+
+To get to where I've got, follow the instructions for installing Knative on Minikube up to Istio:
+
+https://www.knative.dev/docs/install/knative-with-minikube/#installing-istio
+
+Now build and deploy the docker image:
+
+```
+eval $(minikube docker-env)
+sbt docker:publishLocal
+```
+
+And deploy the app:
+
+```
+kubectl apply -f shopping-cart.yaml
+```
+
+You should see two pods start, and if you check their logs, you should see them form a cluster with each other. The instructions I used to get to this point come from here:
+
+https://github.com/akka/akka-management/issues/209
+
+To actually test out the service, set up the gateway (at this point I've got no idea what I'm doing, could be all wrong):
+
+```
+kubectl apply -f istio-ingress.yaml
+```
+
+Now if you run
+
+```
+$ minikube service istio-ingressgateway -n istio-system --url
+http://192.168.39.149:31380
+http://192.168.39.149:31390
+http://192.168.39.149:31400
+http://192.168.39.149:30092
+http://192.168.39.149:30053
+http://192.168.39.149:30318
+http://192.168.39.149:31580
+http://192.168.39.149:32354
+```
+
+You can see a bunch of URLs. One of them will be the correct URL for accessing the shopping cart. To know which, run:
+
+```
+$ kubectl get svc istio-ingressgateway -n istio-system
+NAME                   TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)                                                                                                                   AGE
+istio-ingressgateway   NodePort   10.105.81.196   <none>        80:31380/TCP,443:31390/TCP,31400:31400/TCP,15011:30092/TCP,8060:30053/TCP,853:30318/TCP,15030:31580/TCP,15031:32354/TCP   173m
+```
+
+So, I want port 80, its mapped to port 31380, so I can access my service on `http://192.168.39.149:31380`. Let's have a go (each command has `echo` appended to insert a newline, otherwise, things get weird):
+
+```
+$ curl http://192.168.39.149:31380/cart/mycart; echo
+{"items":[]}
+$ curl http://192.168.39.149:31380/cart/mycart/product/somebike -d 2 -H "Content-Type: application/json" -X PUT; echo
+Item added
+$ curl http://192.168.39.149:31380/cart/mycart; echo
+{"items":[{"productId":"somebike","quantity":2}]}
+```
+
+Now you can try deleting pods and see that the data sticks around (delete them all and it doesn't, of course).
+
+## Next steps
+
+Try and run the above but in KNative.
