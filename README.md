@@ -12,6 +12,12 @@ It configures the cluster formation using instructions found at the [Lightbend O
 * Don't specify health checks as these will prevent communication prior to readiness
 * Modify docker entry point to set the pod ip address to be a dash separated address for the purposes of constructing pod service names in configuration
 
+## Downing
+
+Downing hasn't been addressed yet. It's CRDTs, and it does attempt to do quorum reads, with fallback to local reads if that fails, so we could just use auto downing, though that's not ideal.
+
+One major problem at the moment is I think when a pod is stopped, both the sidecar and the pod are stopped simultaneously, and because the sidecar stops, this means that communication via Akka Remoting will likely fail before the node has a chance to gracefully leave the cluster, so every scale down or rolling upgraded does non graceful stops and requires a downing strategy. I'm not sure if there is any way around this, I can't see anything in Kubernetes that allows controlling the order of container shutdown within a pod. This might be a good reason to have Akka remoting traffic bypass the Istio sidecar - if that were possible.
+
 ## Running in Minikube
 
 So far, I have managed to get the project running on Minikube with Istio (I haven't yet attempted to run in KNative).
