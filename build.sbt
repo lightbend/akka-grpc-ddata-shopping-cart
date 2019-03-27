@@ -1,9 +1,11 @@
 organization := "com.example"
 name := "ddata-shopping-cart"
-version := "1.0-SNAPSHOT"
 scalaVersion := "2.12.8"
 
-enablePlugins(JavaAppPackaging, DockerPlugin)
+version in ThisBuild ~= (_.replace('+', '-'))
+dynver in ThisBuild ~= (_.replace('+', '-'))
+
+enablePlugins(JavaAppPackaging, DockerPlugin, AkkaGrpcPlugin, JavaAgent)
 
 val AkkaVersion = "2.5.21"
 val AkkaHttpVersion = "10.1.7"
@@ -17,6 +19,8 @@ libraryDependencies ++= Seq(
   "com.lightbend.akka.management" %% "akka-management-cluster-bootstrap" % AkkaManagementVersion,
   "com.lightbend.akka.discovery" %% "akka-discovery-kubernetes-api" % AkkaManagementVersion
 )
+
+javaAgents += "org.mortbay.jetty.alpn" % "jetty-alpn-agent" % "2.0.9" % "runtime;test"
 
 dockerBaseImage := "adoptopenjdk/openjdk8"
 dockerUpdateLatest := true
@@ -34,5 +38,5 @@ val httpPort = sys.props.get("http.port").getOrElse("0")
 javaOptions in run ++= {
   seedNodePorts.zipWithIndex.map {
     case (port, index) => s"-Dakka.cluster.seed-nodes.$index=akka.tcp://default@127.0.0.1:$port"
-  } :+ s"-Dakka.remote.netty.tcp.port=$remotingPort" :+ s"http.port=$httpPort"
+  } :+ s"-Dakka.remote.netty.tcp.port=$remotingPort" :+ s"-Dhttp.port=$httpPort"
 }

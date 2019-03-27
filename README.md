@@ -71,18 +71,34 @@ NAME                   TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)         
 istio-ingressgateway   NodePort   10.105.81.196   <none>        80:31380/TCP,443:31390/TCP,31400:31400/TCP,15011:30092/TCP,8060:30053/TCP,853:30318/TCP,15030:31580/TCP,15031:32354/TCP   173m
 ```
 
-So, I want port 80, its mapped to port 31380, so I can access my service on `http://192.168.39.149:31380`. Let's have a go (each command has `echo` appended to insert a newline, otherwise, things get weird):
+## gRPC client
+
+To use the gRPC client, switch to the client directory, and run:
 
 ```
-$ curl http://192.168.39.149:31380/cart/mycart; echo
-{"items":[]}
-$ curl http://192.168.39.149:31380/cart/mycart/product/somebike -d 2 -H "Content-Type: application/json" -X PUT; echo
-Item added
-$ curl http://192.168.39.149:31380/cart/mycart; echo
-{"items":[{"productId":"somebike","quantity":2}]}
+npm install
+node
 ```
 
-Now you can try deleting pods and see that the data sticks around (delete them all and it doesn't, of course).
+In node, run:
+
+```
+.load main.js
+```
+
+To load the client helper. That will output a usage information instructions for how to use the client.
+
+This can be used in development by running this is one terminal:
+
+```
+sbt -Dseed.node.ports=2552,2553 -Dremoting.port=2552 -Dhttp.port=8000 run
+```
+
+And this in another, to start a second node for the cluster:
+
+```
+sbt -Dseed.node.ports=2552,2553 -Dremoting.port=2553 -Dhttp.port=8001 run
+```
 
 ## Next steps
 
