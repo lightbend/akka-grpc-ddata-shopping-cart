@@ -4,6 +4,10 @@ This is a shopping cart implemented using Akka distributed data (CRDTs). It take
 
 It configures the cluster formation using instructions found at the [Lightbend OpenShift deployment guide](https://developer.lightbend.com/guides/openshift-deployment/akka/forming-a-cluster.html).
 
+## What does this demonstrate?
+
+This project demonstrates how Akka Distributed Data can maintain state without a database. It uses Akka Distributed Data to store data across the Akka cluster using CRDTs. As long as at least one node continues to run, the shopping carts will be available, no database is needed. Nodes can be killed, upgraded, whatever.
+
 ## Running
 
 If you wish to run the service in the `default` namespace, then simply run the following on your Kubernetes cluster:

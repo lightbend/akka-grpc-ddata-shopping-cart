@@ -24,7 +24,7 @@ object ShoppingCartStore {
 
   import akka.cluster.ddata.Replicator._
 
-  private val timeout = 3.seconds
+  private val timeout = 1.second
   private val readMajority = ReadMajority(timeout)
   private val writeMajority = WriteMajority(timeout)
 

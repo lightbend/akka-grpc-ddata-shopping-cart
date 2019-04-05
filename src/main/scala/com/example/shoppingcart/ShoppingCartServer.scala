@@ -33,18 +33,11 @@ object ShoppingCartServer extends App {
       port = httpPort,
       connectionContext = HttpConnectionContext(http2 = UseHttp2.Always))
 
-    // Bind service handler servers to localhost:8080/8081
-
     if (!system.settings.config.getBoolean("dev")) {
       AkkaManagement(system).start()
       ClusterBootstrap(system).start()
     }
     println(s"Server online at http://127.0.0.1:$httpPort/")
-
-    scala.sys.addShutdownHook {
-      system.terminate()
-      Await.result(system.whenTerminated, 30.seconds)
-    }
   }
   catch {
     case NonFatal(e) =>
