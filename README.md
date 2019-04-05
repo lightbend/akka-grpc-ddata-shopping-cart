@@ -50,3 +50,13 @@ And this in another, to start a second node for the cluster:
 ```
 sbt -Dseed.node.ports=2552,2553 -Dremoting.port=2553 -Dhttp.port=8001 run
 ```
+
+## License
+
+This software is licensed under the Apache 2 license.
+
+## Maintenance notes
+
+**This project is NOT supported under the Lightbend subscription.**
+
+The project is maintained by the Lightbend Office of the CTO.
