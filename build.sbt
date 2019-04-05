@@ -1,5 +1,5 @@
 organization := "com.example"
-name := "ddata-shopping-cart"
+name := "akka-grpc-ddata-shopping-cart"
 scalaVersion := "2.12.8"
 
 version in ThisBuild ~= (_.replace('+', '-'))
@@ -24,7 +24,9 @@ javaAgents += "org.mortbay.jetty.alpn" % "jetty-alpn-agent" % "2.0.9" % "runtime
 
 dockerBaseImage := "adoptopenjdk/openjdk8"
 dockerUpdateLatest := true
-dockerEntrypoint := List("/opt/docker/bin/entrypoint.sh") ++ dockerEntrypoint.value
+dockerRepository := sys.props.get("docker.registry")
+dockerUsername := sys.props.get("docker.username")
+dockerExposedPorts := Seq(9000, 8558, 2552)
 
 // Used for when running on the command line
 fork in run := true
@@ -38,5 +40,5 @@ val httpPort = sys.props.get("http.port").getOrElse("0")
 javaOptions in run ++= {
   seedNodePorts.zipWithIndex.map {
     case (port, index) => s"-Dakka.cluster.seed-nodes.$index=akka.tcp://default@127.0.0.1:$port"
-  } :+ s"-Dakka.remote.netty.tcp.port=$remotingPort" :+ s"-Dhttp.port=$httpPort"
+  } :+ s"-Dakka.remote.netty.tcp.port=$remotingPort" :+ s"-Dhttp.port=$httpPort" :+ s"-Dakka.remote.netty.tcp.hostname=127.0.0.1"
 }

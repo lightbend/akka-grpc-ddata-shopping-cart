@@ -29,7 +29,7 @@ object ShoppingCartServer extends App {
 
     Http().bindAndHandleAsync(
       ShoppingCartServiceHandler(new ShoppingCartServiceImpl(store)),
-      interface = "127.0.0.1",
+      interface = "0.0.0.0",
       port = httpPort,
       connectionContext = HttpConnectionContext(http2 = UseHttp2.Always))
 

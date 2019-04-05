@@ -1,45 +1,50 @@
-apiVersion: "apps/v1"
-kind: Deployment
+apiVersion: v1
+kind: Service
 metadata:
   name: shopping-cart
 spec:
-  replicas: 2
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http2
+  selector:
+    app: shopping-cart
+  type: LoadBalancer
+
+---
+
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: "shopping-cart"
+spec:
+  # If changing this, ensure REQUIRED_CONTACT_POINT_NR is more than half this number, to ensure only one cluster
+  # will ever bootstrap when starting from scratch.
+  replicas: 3
   selector:
     matchLabels:
-      app: shopping-cart
+      app: "shopping-cart"
   template:
     metadata:
-      annotations:
-        # For some reason, the Knative Istio installation has the policy defaulting to disabled
-        sidecar.istio.io/inject: "true"
       labels:
-        app: shopping-cart
+        app: "shopping-cart"
     spec:
       containers:
-      - name: shopping-cart
-        image: ddata-shopping-cart:latest
-        imagePullPolicy: "Never"
+      - name: "shopping-cart"
+        image: "lightbend-docker-registry.bintray.io/octo/akka-grpc-ddata-shopping-cart:1.0"
 
         ports:
-        - containerPort: 8080
-          name: "http"
-        - containerPort: 2552
-          name: "akka-remoting"
         - containerPort: 8558
-          name: "akka-management"
+          name: "management"
 
         env:
-        - name: POD_IP
+        - name: "APP_LABEL"
           valueFrom:
             fieldRef:
-              fieldPath: status.podIP
-        - name: NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
-        - name: "DYN_JAVA_OPTS"
-          # Here we use ${POD_IP//./-} to replace dots with dashes
-          value: "-Dpod.ip=${POD_IP//./-}"
+              fieldPath: "metadata.labels['app']"
+        - name: "REQUIRED_CONTACT_POINT_NR"
+          value: "2"
         - name: "JAVA_OPTS"
           value: "-Xms128m -Xmx128m -Dconfig.resource=prod-application.conf"
 
@@ -50,57 +55,28 @@ spec:
             cpu: 0.25
             memory: 256Mi
 
----
-
-# Service entry to allow outgoing communication with other pods in this namepsace on Akka remoting and management
-# ports
-apiVersion: networking.istio.io/v1alpha3
-kind: ServiceEntry
-metadata:
-  name: shopping-cart
-spec:
-  hosts:
-  - "*.default.pod.cluster.local"
-  location: MESH_INTERNAL
-  ports:
-  - number: 2552
-    name: "akka-remoting"
-    protocol: TCP
-  - number: 8558
-    name: "akka-management"
-    protocol: HTTP
-  resolution: NONE
-
----
-
-# Not sure if the remoting/management should be separated from the main HTTP
-# interface - probably, for ingress routing we don't want anything being
-# routed to remoting or management?
-apiVersion: v1
-kind: Service
-metadata:
-  name: shopping-cart
-spec:
-  ports:
-  - name: "akka-remoting"
-    port: 2552
-    protocol: TCP
-  - name: "akka-management"
-    port: 8558
-    protocol: TCP
-  - name: http
-    port: 80
-    targetPort: 8080
-  selector:
-    app: shopping-cart
+        readinessProbe:
+          httpGet:
+            path: "/ready"
+            port: "management"
+          periodSeconds: 10
+          failureThreshold: 10
+          initialDelaySeconds: 20
+        livenessProbe:
+          httpGet:
+            path: "/alive"
+            port: "management"
+          periodSeconds: 10
+          failureThreshold: 10
+          initialDelaySeconds: 20
 
 ---
 
 # RBAC configuration for kubernetes API discovery mechanism
-kind: Role
-apiVersion: rbac.authorization.k8s.io/v1
+kind: "Role"
+apiVersion: "rbac.authorization.k8s.io/v1"
 metadata:
-  name: pod-reader
+  name: "pod-reader"
 rules:
 - apiGroups: [""]
   resources: ["pods"]
@@ -108,14 +84,14 @@ rules:
 
 ---
 
-kind: RoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
+kind: "RoleBinding"
+apiVersion: "rbac.authorization.k8s.io/v1"
 metadata:
-  name: read-pods
+  name: "read-pods"
 subjects:
-- kind: User
-  name: system:serviceaccount:default:default
+- kind: "User"
+  name: "system:serviceaccount:default:default"
 roleRef:
-  kind: Role
-  name: pod-reader
-  apiGroup: rbac.authorization.k8s.io
+  kind: "Role"
+  name: "pod-reader"
+  apiGroup: "rbac.authorization.k8s.io"
